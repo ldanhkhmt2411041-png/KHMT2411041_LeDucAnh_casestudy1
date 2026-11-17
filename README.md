@@ -19,41 +19,22 @@
 | `buoi4` | Buổi 4 | Xây dựng giao diện màn hình Dashboard quản lý thu chi (`home_screen.dart`). | Hoàn thành |
 | `buoi5` | Buổi 5 | Thiết kế và xây dựng cơ sở dữ liệu SQLite cho ứng dụng Expense Manager. | Hoàn thành |
 | `buoi6` | Buổi 6 | Hoàn thiện các màn hình thêm, sửa và load thông tin giao dịch lên màn hình Dashboard. | Hoàn thành |
+| `buoi7` | Buổi 7 | Nâng cấp và mở rộng cơ sở dữ liệu SQLite (Ngân sách, Thống kê danh mục, Bộ lọc). | Hoàn thành |
 
 ---
 
-## Chi tiết Buổi 6: Hoàn thiện Thêm, Sửa và Nạp dữ liệu Dashboard
+## Chi tiết Buổi 7: Xây dựng Database nâng cao
 
-### 1. Luồng hoạt động hoàn thiện (Full Flow)
-1. **Welcome Screen (`main.dart`):** Bấm nút *"Bắt đầu"* để điều hướng vào Dashboard chính.
-2. **Dashboard (`home_screen.dart`):**
-   - Tự động nạp dữ liệu động thời gian thực từ SQLite `DatabaseHelper`.
-   - Tính toán và hiển thị chính xác **Số dư hiện tại**, **Tổng thu nhập**, **Tổng chi tiêu**.
-   - Hỗ trợ ẩn/hiện số dư tài khoản khi nhấn vào icon mắt.
-   - Hiển thị danh sách các giao dịch gần đây kèm icon, màu sắc và định dạng số tiền (+/- VNĐ).
-   - Hỗ trợ vuốt xuống để làm mới dữ liệu (**Pull to Refresh**).
-3. **Thêm giao dịch (`add_screen.dart`):**
-   - Nhấn nút `+` (FloatingActionButton) ở Dashboard để mở màn hình Thêm.
-   - Nhập thông tin, chọn ngày bằng `DatePicker`, chọn danh mục tương ứng theo loại Chi tiêu/Thu nhập.
-   - Bấm *"Lưu"* để ghi vào SQLite qua `insertTransaction` và tự động quay về Dashboard cập nhật số liệu.
-4. **Sửa / Xóa giao dịch (`edit_screen.dart`):**
-   - Nhấn vào bất kỳ giao dịch nào trong danh sách Dashboard để mở màn hình Sửa với dữ liệu được điền sẵn.
-   - Cho phép chỉnh sửa thông tin và bấm *"Lưu"* để cập nhật qua `updateTransaction`.
-   - Hỗ trợ icon *"Thùng rác"* trên AppBar để xóa giao dịch qua `deleteTransaction` với hộp thoại xác nhận an toàn.
-   - Tự động quay về Dashboard và làm mới số dư cùng danh sách giao dịch.
-
----
-
-## Cấu trúc mã nguồn trong `lib/`
-```text
-lib/
-├── database/
-│   └── database_helper.dart      # Quản trị SQLite Singleton, tạo bảng, CRUD, seeding, thống kê
-├── models/
-│   ├── category_model.dart       # Model danh mục, toMap(), fromMap()
-│   └── transaction_model.dart    # Model giao dịch, format tiền tệ, mapping icon/màu sắc
-├── add_screen.dart               # Giao diện Thêm giao dịch (kết nối insert SQLite)
-├── edit_screen.dart              # Giao diện Sửa & Xóa giao dịch (kết nối update/delete SQLite)
-├── home_screen.dart              # Giao diện Dashboard (load động số dư, tổng thu, tổng chi, danh sách)
-└── main.dart                     # Giao diện Chào mừng (WelcomeScreen) & Điều hướng sang Dashboard
-```
+1. **Nâng cấp Schema Database:**
+   - Phiên bản SQLite Database lên **v2** với hàm di chuyển schema `onUpgradeDB` an toàn.
+   - Bổ sung bảng `budgets`: Quản lý hạn mức chi tiêu theo từng danh mục và từng tháng.
+   - Bổ sung bảng `app_settings`: Quản lý cấu hình tùy chọn của người dùng.
+2. **Các phương thức truy vấn mở rộng:**
+   - `searchTransactions(String keyword)`: Tìm kiếm giao dịch nhanh theo tiêu đề hoặc ghi chú.
+   - `getFilteredTransactions({int? type, String? category, String? keyword})`: Bộ lọc đa điều kiện.
+   - `getCategorySpendingReport()`: Phân tích cơ cấu chi tiêu theo nhóm danh mục, tự động tính tỷ lệ phần trăm (%).
+   - `setBudget`, `getAllBudgets`: Thiết lập và tra cứu ngân sách chi tiêu.
+   - `resetToInitialData()`: Đặt lại dữ liệu mẫu ban đầu.
+3. **Data Models bổ sung:**
+   - `CategoryStatModel`: Phục vụ báo cáo tỷ trọng chi tiêu.
+   - `BudgetModel`: Phục vụ quản lý ngân sách.

@@ -3,6 +3,8 @@ import 'package:path/path.dart';
 import 'package:sqflite/sqflite.dart';
 import '../models/transaction_model.dart';
 import '../models/category_model.dart';
+import '../models/category_stat_model.dart';
+import '../models/budget_model.dart';
 
 /// Lớp quản trị cơ sở dữ liệu SQLite cho ứng dụng Expense Manager
 class DatabaseHelper {
@@ -12,12 +14,15 @@ class DatabaseHelper {
 
   DatabaseHelper._init();
 
-  // Tên cơ sở dữ liệu và tên các bảng
+  // Tên cơ sở dữ liệu và phiên bản
   static const String _dbName = 'expense_manager.db';
-  static const int _dbVersion = 1;
+  static const int _dbVersion = 2;
 
+  // Tên các bảng
   static const String tableTransactions = 'transactions';
   static const String tableCategories = 'categories';
+  static const String tableBudgets = 'budgets';
+  static const String tableSettings = 'app_settings';
 
   // Các trường của bảng transactions
   static const String colId = 'id';
@@ -83,92 +88,72 @@ class DatabaseHelper {
       )
     ''');
 
-    // 3. Nạp danh mục mặc định
-    await _seedCategories(db);
+    // 3. Tạo bảng budgets (Ngân sách chi tiêu)
+    await db.execute('''
+      CREATE TABLE $tableBudgets (
+        id INTEGER PRIMARY KEY AUTOINCREMENT,
+        category TEXT NOT NULL,
+        monthly_limit REAL NOT NULL,
+        month TEXT NOT NULL,
+        UNIQUE(category, month)
+      )
+    ''');
 
-    // 4. Nạp dữ liệu giao dịch ban đầu (khớp với màn hình Dashboard đề bài)
+    // 4. Tạo bảng app_settings (Cài đặt cấu hình)
+    await db.execute('''
+      CREATE TABLE $tableSettings (
+        key TEXT PRIMARY KEY,
+        value TEXT NOT NULL
+      )
+    ''');
+
+    // Nạp dữ liệu ban đầu
+    await _seedCategories(db);
     await _seedInitialTransactions(db);
+    await _seedInitialBudgets(db);
   }
 
-  /// Nâng cấp cơ sở dữ liệu khi có phiên bản mới
+  /// Nâng cấp cơ sở dữ liệu khi cập nhật phiên bản
   Future<void> _onUpgradeDB(Database db, int oldVersion, int newVersion) async {
-    // Dành cho việc migrate schema trong tương lai
+    if (oldVersion < 2) {
+      await db.execute('''
+        CREATE TABLE IF NOT EXISTS $tableBudgets (
+          id INTEGER PRIMARY KEY AUTOINCREMENT,
+          category TEXT NOT NULL,
+          monthly_limit REAL NOT NULL,
+          month TEXT NOT NULL,
+          UNIQUE(category, month)
+        )
+      ''');
+
+      await db.execute('''
+        CREATE TABLE IF NOT EXISTS $tableSettings (
+          key TEXT PRIMARY KEY,
+          value TEXT NOT NULL
+        )
+      ''');
+
+      await _seedInitialBudgets(db);
+    }
   }
 
   /// Nạp các danh mục mặc định cho chi tiêu và thu nhập
   Future<void> _seedCategories(Database db) async {
     final List<Map<String, dynamic>> defaultCategories = [
-      // Danh mục chi tiêu (type = 0)
-      {
-        colCatName: 'Ăn uống',
-        colCatType: 0,
-        colCatIcon: 'restaurant',
-        colCatColor: 0xFFFF7043,
-      },
-      {
-        colCatName: 'Di chuyển',
-        colCatType: 0,
-        colCatIcon: 'directions_car',
-        colCatColor: 0xFF29B6F6,
-      },
-      {
-        colCatName: 'Mua sắm',
-        colCatType: 0,
-        colCatIcon: 'shopping_bag',
-        colCatColor: 0xFFAB47BC,
-      },
-      {
-        colCatName: 'Giáo dục',
-        colCatType: 0,
-        colCatIcon: 'school',
-        colCatColor: 0xFF26A69A,
-      },
-      {
-        colCatName: 'Giải trí',
-        colCatType: 0,
-        colCatIcon: 'sports_esports',
-        colCatColor: 0xFFFFB74D,
-      },
-      {
-        colCatName: 'Sức khỏe',
-        colCatType: 0,
-        colCatIcon: 'local_hospital',
-        colCatColor: 0xFFEF5350,
-      },
-      {
-        colCatName: 'Khác',
-        colCatType: 0,
-        colCatIcon: 'category',
-        colCatColor: 0xFF78909C,
-      },
-
-      // Danh mục thu nhập (type = 1)
-      {
-        colCatName: 'Thu nhập',
-        colCatType: 1,
-        colCatIcon: 'attach_money',
-        colCatColor: 0xFF66BB6A,
-      },
-      {
-        colCatName: 'Lương',
-        colCatType: 1,
-        colCatIcon: 'attach_money',
-        colCatColor: 0xFF4CAF50,
-      },
-      {
-        colCatName: 'Thưởng',
-        colCatType: 1,
-        colCatIcon: 'attach_money',
-        colCatColor: 0xFF81C784,
-      },
+      {colCatName: 'Ăn uống', colCatType: 0, colCatIcon: 'restaurant', colCatColor: 0xFFFF7043},
+      {colCatName: 'Di chuyển', colCatType: 0, colCatIcon: 'directions_car', colCatColor: 0xFF29B6F6},
+      {colCatName: 'Mua sắm', colCatType: 0, colCatIcon: 'shopping_bag', colCatColor: 0xFFAB47BC},
+      {colCatName: 'Giáo dục', colCatType: 0, colCatIcon: 'school', colCatColor: 0xFF26A69A},
+      {colCatName: 'Giải trí', colCatType: 0, colCatIcon: 'sports_esports', colCatColor: 0xFFFFB74D},
+      {colCatName: 'Sức khỏe', colCatType: 0, colCatIcon: 'local_hospital', colCatColor: 0xFFEF5350},
+      {colCatName: 'Khác', colCatType: 0, colCatIcon: 'category', colCatColor: 0xFF78909C},
+      {colCatName: 'Thu nhập', colCatType: 1, colCatIcon: 'attach_money', colCatColor: 0xFF66BB6A},
+      {colCatName: 'Lương', colCatType: 1, colCatIcon: 'attach_money', colCatColor: 0xFF4CAF50},
+      {colCatName: 'Thưởng', colCatType: 1, colCatIcon: 'attach_money', colCatColor: 0xFF81C784},
     ];
 
     for (final cat in defaultCategories) {
-      await db.insert(
-        tableCategories,
-        cat,
-        conflictAlgorithm: ConflictAlgorithm.replace,
-      );
+      await db.insert(tableCategories, cat, conflictAlgorithm: ConflictAlgorithm.replace);
     }
   }
 
@@ -227,18 +212,28 @@ class DatabaseHelper {
     }
   }
 
+  /// Nạp ngân sách ban đầu
+  Future<void> _seedInitialBudgets(Database db) async {
+    final List<Map<String, dynamic>> budgets = [
+      {'category': 'Ăn uống', 'monthly_limit': 2000000.0, 'month': '09/2024'},
+      {'category': 'Di chuyển', 'monthly_limit': 500000.0, 'month': '09/2024'},
+      {'category': 'Mua sắm', 'monthly_limit': 1000000.0, 'month': '09/2024'},
+    ];
+    for (final b in budgets) {
+      await db.insert(tableBudgets, b, conflictAlgorithm: ConflictAlgorithm.replace);
+    }
+  }
+
   // ==========================================
   // CÁC PHƯƠNG THỨC CRUD CHO TRANSACTIONS
   // ==========================================
 
-  /// Thêm giao dịch mới vào cơ sở dữ liệu
   Future<TransactionModel> insertTransaction(TransactionModel item) async {
     final db = await instance.database;
     final id = await db.insert(tableTransactions, item.toMap());
     return item.copyWith(id: id);
   }
 
-  /// Lấy chi tiết một giao dịch theo ID
   Future<TransactionModel?> getTransactionById(int id) async {
     final db = await instance.database;
     final maps = await db.query(
@@ -253,7 +248,6 @@ class DatabaseHelper {
     return null;
   }
 
-  /// Lấy toàn bộ danh sách giao dịch (mặc định sắp xếp theo id giảm dần)
   Future<List<TransactionModel>> getAllTransactions({String? orderBy}) async {
     final db = await instance.database;
     final result = await db.query(
@@ -263,7 +257,6 @@ class DatabaseHelper {
     return result.map((map) => TransactionModel.fromMap(map)).toList();
   }
 
-  /// Lấy danh sách N giao dịch gần nhất
   Future<List<TransactionModel>> getRecentTransactions({int limit = 5}) async {
     final db = await instance.database;
     final result = await db.query(
@@ -274,7 +267,6 @@ class DatabaseHelper {
     return result.map((map) => TransactionModel.fromMap(map)).toList();
   }
 
-  /// Lọc danh sách giao dịch theo loại (0: Chi tiêu, 1: Thu nhập)
   Future<List<TransactionModel>> getTransactionsByType(int type) async {
     final db = await instance.database;
     final result = await db.query(
@@ -286,7 +278,6 @@ class DatabaseHelper {
     return result.map((map) => TransactionModel.fromMap(map)).toList();
   }
 
-  /// Lọc danh sách giao dịch theo danh mục
   Future<List<TransactionModel>> getTransactionsByCategory(String category) async {
     final db = await instance.database;
     final result = await db.query(
@@ -298,7 +289,57 @@ class DatabaseHelper {
     return result.map((map) => TransactionModel.fromMap(map)).toList();
   }
 
-  /// Cập nhật thông tin giao dịch
+  /// Tìm kiếm giao dịch theo từ khóa
+  Future<List<TransactionModel>> searchTransactions(String keyword) async {
+    final db = await instance.database;
+    final pattern = '%$keyword%';
+    final result = await db.query(
+      tableTransactions,
+      where: '$colTitle LIKE ? OR $colNote LIKE ? OR $colCategory LIKE ?',
+      whereArgs: [pattern, pattern, pattern],
+      orderBy: '$colId DESC',
+    );
+    return result.map((map) => TransactionModel.fromMap(map)).toList();
+  }
+
+  /// Lọc giao dịch nâng cao theo loại và danh mục
+  Future<List<TransactionModel>> getFilteredTransactions({
+    int? type,
+    String? category,
+    String? keyword,
+  }) async {
+    final db = await instance.database;
+    List<String> whereClauses = [];
+    List<dynamic> whereArgs = [];
+
+    if (type != null) {
+      whereClauses.add('$colType = ?');
+      whereArgs.add(type);
+    }
+
+    if (category != null && category.isNotEmpty && category != 'Tất cả') {
+      whereClauses.add('$colCategory = ?');
+      whereArgs.add(category);
+    }
+
+    if (keyword != null && keyword.trim().isNotEmpty) {
+      whereClauses.add('($colTitle LIKE ? OR $colNote LIKE ?)');
+      final p = '%${keyword.trim()}%';
+      whereArgs.add(p);
+      whereArgs.add(p);
+    }
+
+    final where = whereClauses.isNotEmpty ? whereClauses.join(' AND ') : null;
+    final result = await db.query(
+      tableTransactions,
+      where: where,
+      whereArgs: whereArgs.isNotEmpty ? whereArgs : null,
+      orderBy: '$colId DESC',
+    );
+
+    return result.map((map) => TransactionModel.fromMap(map)).toList();
+  }
+
   Future<int> updateTransaction(TransactionModel item) async {
     final db = await instance.database;
     return await db.update(
@@ -309,7 +350,6 @@ class DatabaseHelper {
     );
   }
 
-  /// Xóa một giao dịch theo ID
   Future<int> deleteTransaction(int id) async {
     final db = await instance.database;
     return await db.delete(
@@ -319,17 +359,15 @@ class DatabaseHelper {
     );
   }
 
-  /// Xóa toàn bộ giao dịch
   Future<int> deleteAllTransactions() async {
     final db = await instance.database;
     return await db.delete(tableTransactions);
   }
 
   // ==========================================
-  // CÁC HÀM THỐNG KÊ TÍNH TOÁN
+  // CÁC HÀM THỐNG KÊ TÍNH TOÁN NÂNG CAO
   // ==========================================
 
-  /// Tính tổng số tiền thu nhập (type = 1)
   Future<double> getTotalIncome() async {
     final db = await instance.database;
     final result = await db.rawQuery(
@@ -341,7 +379,6 @@ class DatabaseHelper {
     return 0.0;
   }
 
-  /// Tính tổng số tiền chi tiêu (type = 0)
   Future<double> getTotalExpense() async {
     final db = await instance.database;
     final result = await db.rawQuery(
@@ -353,18 +390,78 @@ class DatabaseHelper {
     return 0.0;
   }
 
-  /// Tính số dư hiện tại (Tổng thu nhập - Tổng chi tiêu)
   Future<double> getCurrentBalance() async {
     final double income = await getTotalIncome();
     final double expense = await getTotalExpense();
     return income - expense;
   }
 
+  /// Báo cáo chi tiêu theo từng danh mục kèm tỉ lệ phần trăm
+  Future<List<CategoryStatModel>> getCategorySpendingReport() async {
+    final db = await instance.database;
+    final double totalExpense = await getTotalExpense();
+
+    final result = await db.rawQuery('''
+      SELECT $colCategory, SUM($colAmount) as total, COUNT($colId) as count
+      FROM $tableTransactions
+      WHERE $colType = 0
+      GROUP BY $colCategory
+      ORDER BY total DESC
+    ''');
+
+    return result.map((row) {
+      final category = row[colCategory] as String;
+      final amount = (row['total'] as num).toDouble();
+      final count = row['count'] as int;
+      final percentage = totalExpense > 0 ? (amount / totalExpense) * 100 : 0.0;
+
+      return CategoryStatModel(
+        category: category,
+        totalAmount: amount,
+        count: count,
+        percentage: percentage,
+      );
+    }).toList();
+  }
+
+  // ==========================================
+  // CÁC PHƯƠNG THỨC CHO BUDGETS & SETTINGS
+  // ==========================================
+
+  Future<int> setBudget(String category, double limit, String month) async {
+    final db = await instance.database;
+    return await db.insert(
+      tableBudgets,
+      {'category': category, 'monthly_limit': limit, 'month': month},
+      conflictAlgorithm: ConflictAlgorithm.replace,
+    );
+  }
+
+  Future<List<BudgetModel>> getAllBudgets(String month) async {
+    final db = await instance.database;
+    final result = await db.query(
+      tableBudgets,
+      where: 'month = ?',
+      whereArgs: [month],
+    );
+    return result.map((m) => BudgetModel.fromMap(m)).toList();
+  }
+
+  /// Đặt lại cơ sở dữ liệu về trạng thái mẫu ban đầu
+  Future<void> resetToInitialData() async {
+    final db = await instance.database;
+    await db.delete(tableTransactions);
+    await db.delete(tableCategories);
+    await db.delete(tableBudgets);
+    await _seedCategories(db);
+    await _seedInitialTransactions(db);
+    await _seedInitialBudgets(db);
+  }
+
   // ==========================================
   // CÁC PHƯƠNG THỨC CHO CATEGORIES
   // ==========================================
 
-  /// Lấy toàn bộ danh mục hoặc lọc theo loại
   Future<List<CategoryModel>> getAllCategories({int? type}) async {
     final db = await instance.database;
     List<Map<String, dynamic>> result;
@@ -380,7 +477,6 @@ class DatabaseHelper {
     return result.map((map) => CategoryModel.fromMap(map)).toList();
   }
 
-  /// Thêm danh mục mới
   Future<int> insertCategory(CategoryModel category) async {
     final db = await instance.database;
     return await db.insert(
@@ -390,7 +486,6 @@ class DatabaseHelper {
     );
   }
 
-  /// Đóng kết nối cơ sở dữ liệu
   Future<void> close() async {
     final db = await instance.database;
     await db.close();
