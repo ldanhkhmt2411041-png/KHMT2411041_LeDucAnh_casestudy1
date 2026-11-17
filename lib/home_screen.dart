@@ -3,6 +3,8 @@ import 'database/database_helper.dart';
 import 'models/transaction_model.dart';
 import 'add_screen.dart';
 import 'edit_screen.dart';
+import 'transactions_screen.dart';
+import 'statistics_screen.dart';
 
 void main() {
   runApp(const MyApp());
@@ -74,9 +76,6 @@ class _HomeScreenState extends State<HomeScreen> {
         setState(() {
           _isLoading = false;
         });
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text('Lỗi tải dữ liệu: $e')),
-        );
       }
     }
   }
@@ -109,15 +108,211 @@ class _HomeScreenState extends State<HomeScreen> {
     }
   }
 
+  /// Hiển thị hộp thoại thông báo
+  void _showNotificationDialog() {
+    showDialog(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        title: Row(
+          children: const [
+            Icon(Icons.notifications_active, color: Color(0xFF2979FF)),
+            SizedBox(width: 8),
+            Text('Thông báo mới'),
+          ],
+        ),
+        content: Column(
+          mainAxisSize: MainAxisSize.min,
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: const [
+            ListTile(
+              contentPadding: EdgeInsets.zero,
+              leading: Icon(Icons.check_circle, color: Colors.green),
+              title: Text('Đồng bộ thành công', style: TextStyle(fontSize: 14, fontWeight: FontWeight.bold)),
+              subtitle: Text('Dữ liệu SQLite đã sẵn sàng và hoạt động mượt mà.', style: TextStyle(fontSize: 12)),
+            ),
+            Divider(),
+            ListTile(
+              contentPadding: EdgeInsets.zero,
+              leading: Icon(Icons.tips_and_updates, color: Colors.orange),
+              title: Text('Mẹo quản lý', style: TextStyle(fontSize: 14, fontWeight: FontWeight.bold)),
+              subtitle: Text('Hãy ghi chép thu chi mỗi ngày để kiểm soát tài chính tốt hơn.', style: TextStyle(fontSize: 12)),
+            ),
+            Divider(),
+            ListTile(
+              contentPadding: EdgeInsets.zero,
+              leading: Icon(Icons.pie_chart, color: Colors.purple),
+              title: Text('Báo cáo chi tiêu', style: TextStyle(fontSize: 14, fontWeight: FontWeight.bold)),
+              subtitle: Text('Xem phân tích tỷ trọng chi tiêu tại tab Thống kê.', style: TextStyle(fontSize: 12)),
+            ),
+          ],
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(ctx),
+            child: const Text('Đóng'),
+          ),
+        ],
+      ),
+    );
+  }
+
+  /// Khôi phục dữ liệu mẫu
+  Future<void> _resetData() async {
+    final confirm = await showDialog<bool>(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        title: const Text('Khôi phục dữ liệu mẫu'),
+        content: const Text('Bạn có muốn đặt lại toàn bộ dữ liệu về trạng thái mẫu ban đầu?'),
+        actions: [
+          TextButton(onPressed: () => Navigator.pop(ctx, false), child: const Text('Hủy')),
+          TextButton(
+            onPressed: () => Navigator.pop(ctx, true),
+            style: TextButton.styleFrom(foregroundColor: Colors.red),
+            child: const Text('Khôi phục'),
+          ),
+        ],
+      ),
+    );
+
+    if (confirm == true) {
+      await DatabaseHelper.instance.resetToInitialData();
+      await _loadData();
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(
+            content: Text('Đã khôi phục dữ liệu mẫu thành công!'),
+            backgroundColor: Color(0xFF2E7D32),
+          ),
+        );
+      }
+    }
+  }
+
+  /// Thông tin tác giả và đồ án
+  void _showAboutDialog() {
+    showDialog(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        title: const Text('Thông tin ứng dụng'),
+        content: Column(
+          mainAxisSize: MainAxisSize.min,
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: const [
+            Text('Ứng dụng: Expense Manager', style: TextStyle(fontWeight: FontWeight.bold)),
+            SizedBox(height: 6),
+            Text('Môn học: Lập trình di động (Flutter)'),
+            Text('Sinh viên: Lê Đức Anh'),
+            Text('MSSV: KHMT2411041'),
+            Text('Email: ldanhkhmt2411041@student.ctuet.edu.vn'),
+            SizedBox(height: 8),
+            Text('Công nghệ: Flutter & SQLite Database'),
+          ],
+        ),
+        actions: [
+          TextButton(onPressed: () => Navigator.pop(ctx), child: const Text('Đóng')),
+        ],
+      ),
+    );
+  }
+
   @override
   Widget build(BuildContext context) {
+    if (_selectedIndex == 1) {
+      return Scaffold(
+        body: const TransactionsScreen(),
+        bottomNavigationBar: _buildBottomNav(),
+      );
+    }
+
+    if (_selectedIndex == 2) {
+      return Scaffold(
+        body: const StatisticsScreen(),
+        bottomNavigationBar: _buildBottomNav(),
+      );
+    }
+
+    // Tab 0: Dashboard chính
     return Scaffold(
+      drawer: Drawer(
+        child: ListView(
+          padding: EdgeInsets.zero,
+          children: [
+            UserAccountsDrawerHeader(
+              decoration: const BoxDecoration(
+                gradient: LinearGradient(
+                  colors: [Color(0xFF2979FF), Color(0xFF1565C0)],
+                ),
+              ),
+              currentAccountPicture: const CircleAvatar(
+                backgroundColor: Colors.white,
+                child: Text(
+                  'ĐA',
+                  style: TextStyle(
+                    fontSize: 22,
+                    fontWeight: FontWeight.bold,
+                    color: Color(0xFF1565C0),
+                  ),
+                ),
+              ),
+              accountName: const Text(
+                'Lê Đức Anh',
+                style: TextStyle(fontWeight: FontWeight.bold, fontSize: 16),
+              ),
+              accountEmail: const Text('KHMT2411041 • CTUET'),
+            ),
+            ListTile(
+              leading: const Icon(Icons.home_outlined, color: Color(0xFF2979FF)),
+              title: const Text('Trang chủ'),
+              selected: _selectedIndex == 0,
+              onTap: () {
+                Navigator.pop(context);
+                setState(() => _selectedIndex = 0);
+              },
+            ),
+            ListTile(
+              leading: const Icon(Icons.receipt_long_outlined),
+              title: const Text('Lịch sử giao dịch'),
+              onTap: () {
+                Navigator.pop(context);
+                setState(() => _selectedIndex = 1);
+              },
+            ),
+            ListTile(
+              leading: const Icon(Icons.pie_chart_outline),
+              title: const Text('Báo cáo thống kê'),
+              onTap: () {
+                Navigator.pop(context);
+                setState(() => _selectedIndex = 2);
+              },
+            ),
+            const Divider(),
+            ListTile(
+              leading: const Icon(Icons.restore, color: Colors.orange),
+              title: const Text('Khôi phục dữ liệu mẫu'),
+              onTap: () {
+                Navigator.pop(context);
+                _resetData();
+              },
+            ),
+            ListTile(
+              leading: const Icon(Icons.info_outline, color: Colors.blueGrey),
+              title: const Text('Thông tin ứng dụng'),
+              onTap: () {
+                Navigator.pop(context);
+                _showAboutDialog();
+              },
+            ),
+          ],
+        ),
+      ),
       appBar: AppBar(
         backgroundColor: Colors.white,
         elevation: 0,
-        leading: IconButton(
-          icon: const Icon(Icons.menu, color: Colors.black87),
-          onPressed: () {},
+        leading: Builder(
+          builder: (context) => IconButton(
+            icon: const Icon(Icons.menu, color: Colors.black87),
+            onPressed: () => Scaffold.of(context).openDrawer(),
+          ),
         ),
         title: const Text(
           'Quản lý thu chi',
@@ -135,7 +330,7 @@ class _HomeScreenState extends State<HomeScreen> {
               IconButton(
                 icon: const Icon(Icons.notifications_none_outlined,
                     color: Colors.black87),
-                onPressed: () {},
+                onPressed: _showNotificationDialog,
               ),
               Positioned(
                 right: 8,
@@ -396,7 +591,9 @@ class _HomeScreenState extends State<HomeScreen> {
                       ),
                     ),
                     GestureDetector(
-                      onTap: _loadData,
+                      onTap: () {
+                        setState(() => _selectedIndex = 1);
+                      },
                       child: const Text(
                         'Xem tất cả',
                         style: TextStyle(
@@ -441,7 +638,7 @@ class _HomeScreenState extends State<HomeScreen> {
                   ListView.separated(
                     shrinkWrap: true,
                     physics: const NeverScrollableScrollPhysics(),
-                    itemCount: _transactions.length,
+                    itemCount: _transactions.length > 5 ? 5 : _transactions.length,
                     separatorBuilder: (context, index) =>
                         const SizedBox(height: 12),
                     itemBuilder: (context, index) {
@@ -550,32 +747,41 @@ class _HomeScreenState extends State<HomeScreen> {
       ),
 
       // 6. Thanh Điều hướng Dưới (Bottom Navigation Bar)
-      bottomNavigationBar: BottomNavigationBar(
-        currentIndex: _selectedIndex,
-        onTap: (index) {
-          setState(() {
-            _selectedIndex = index;
-          });
-        },
-        selectedItemColor: const Color(0xFF2979FF),
-        unselectedItemColor: Colors.black45,
-        showSelectedLabels: false,
-        showUnselectedLabels: false,
-        items: const [
-          BottomNavigationBarItem(
-            icon: Icon(Icons.home),
-            label: 'Trang chủ',
-          ),
-          BottomNavigationBarItem(
-            icon: Icon(Icons.assignment_outlined),
-            label: 'Báo cáo',
-          ),
-          BottomNavigationBarItem(
-            icon: Icon(Icons.history),
-            label: 'Lịch sử',
-          ),
-        ],
-      ),
+      bottomNavigationBar: _buildBottomNav(),
+    );
+  }
+
+  Widget _buildBottomNav() {
+    return BottomNavigationBar(
+      currentIndex: _selectedIndex,
+      onTap: (index) {
+        setState(() {
+          _selectedIndex = index;
+        });
+        if (index == 0) {
+          _loadData();
+        }
+      },
+      selectedItemColor: const Color(0xFF2979FF),
+      unselectedItemColor: Colors.black45,
+      showSelectedLabels: true,
+      showUnselectedLabels: true,
+      selectedFontSize: 12,
+      unselectedFontSize: 12,
+      items: const [
+        BottomNavigationBarItem(
+          icon: Icon(Icons.home),
+          label: 'Trang chủ',
+        ),
+        BottomNavigationBarItem(
+          icon: Icon(Icons.assignment_outlined),
+          label: 'Giao dịch',
+        ),
+        BottomNavigationBarItem(
+          icon: Icon(Icons.pie_chart_outline),
+          label: 'Thống kê',
+        ),
+      ],
     );
   }
 }
