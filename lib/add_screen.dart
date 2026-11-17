@@ -1,4 +1,6 @@
 import 'package:flutter/material.dart';
+import 'database/database_helper.dart';
+import 'models/transaction_model.dart';
 
 void main() {
   runApp(const MyApp());
@@ -33,17 +35,36 @@ class _AddTransactionScreenState extends State<AddTransactionScreen> {
   String selectedCategory = 'Ăn uống';
 
   final TextEditingController _amountController = TextEditingController();
-  final TextEditingController _dateController =
-  TextEditingController(text: '12/04/2025');
+  final TextEditingController _dateController = TextEditingController();
   final TextEditingController _noteController = TextEditingController();
 
-  final List<String> categories = [
+  final List<String> expenseCategories = [
     'Ăn uống',
     'Di chuyển',
     'Mua sắm',
+    'Giáo dục',
     'Giải trí',
+    'Sức khỏe',
     'Khác'
   ];
+
+  final List<String> incomeCategories = [
+    'Thu nhập',
+    'Lương',
+    'Thưởng',
+    'Khác'
+  ];
+
+  List<String> get currentCategories =>
+      selectedType == 0 ? expenseCategories : incomeCategories;
+
+  @override
+  void initState() {
+    super.initState();
+    final now = DateTime.now();
+    _dateController.text =
+        "${now.day.toString().padLeft(2, '0')}/${now.month.toString().padLeft(2, '0')}/${now.year}";
+  }
 
   @override
   void dispose() {
@@ -56,15 +77,115 @@ class _AddTransactionScreenState extends State<AddTransactionScreen> {
   Future<void> _selectDate(BuildContext context) async {
     final DateTime? picked = await showDatePicker(
       context: context,
-      initialDate: DateTime(2025, 4, 12),
+      initialDate: DateTime.now(),
       firstDate: DateTime(2020),
       lastDate: DateTime(2030),
     );
     if (picked != null) {
       setState(() {
         _dateController.text =
-        "${picked.day.toString().padLeft(2, '0')}/${picked.month.toString().padLeft(2, '0')}/${picked.year}";
+            "${picked.day.toString().padLeft(2, '0')}/${picked.month.toString().padLeft(2, '0')}/${picked.year}";
       });
+    }
+  }
+
+  Future<void> _saveTransaction() async {
+    final rawAmount = _amountController.text.trim().replaceAll('.', '').replaceAll(',', '');
+    if (rawAmount.isEmpty) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('Vui lòng nhập số tiền!')),
+      );
+      return;
+    }
+
+    final double? amount = double.tryParse(rawAmount);
+    if (amount == null || amount <= 0) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('Số tiền không hợp lệ!')),
+      );
+      return;
+    }
+
+    final note = _noteController.text.trim();
+    // Tiêu đề: nếu có ghi chú thì lấy ghi chú làm tiêu đề ngắn gọn, nếu không lấy tên danh mục
+    final title = note.isNotEmpty ? note : selectedCategory;
+
+    final newTransaction = TransactionModel(
+      title: title,
+      amount: amount,
+      date: _dateController.text.trim(),
+      category: selectedCategory,
+      type: selectedType,
+      note: note.isNotEmpty ? note : null,
+      createdAt: DateTime.now().toIso8601String(),
+    );
+
+    try {
+      await DatabaseHelper.instance.insertTransaction(newTransaction);
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(
+            content: Text('Đã thêm giao dịch thành công!'),
+            backgroundColor: Color(0xFF2E7D32),
+          ),
+        );
+        Navigator.pop(context, true);
+      }
+    } catch (e) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text('Lỗi khi lưu giao dịch: $e'),
+            backgroundColor: Colors.red,
+          ),
+        );
+      }
+    }
+  }
+
+  IconData _getCategoryIcon(String category) {
+    switch (category.toLowerCase().trim()) {
+      case 'ăn uống':
+        return Icons.restaurant;
+      case 'di chuyển':
+        return Icons.directions_car;
+      case 'mua sắm':
+        return Icons.shopping_bag;
+      case 'giáo dục':
+        return Icons.school;
+      case 'giải trí':
+        return Icons.sports_esports;
+      case 'sức khỏe':
+        return Icons.local_hospital;
+      case 'thu nhập':
+      case 'lương':
+      case 'thưởng':
+        return Icons.attach_money;
+      default:
+        return Icons.category;
+    }
+  }
+
+  Color _getCategoryColor(String category) {
+    switch (category.toLowerCase().trim()) {
+      case 'ăn uống':
+        return const Color(0xFFFF5252);
+      case 'di chuyển':
+        return const Color(0xFF29B6F6);
+      case 'mua sắm':
+        return const Color(0xFFAB47BC);
+      case 'giáo dục':
+        return const Color(0xFF26A69A);
+      case 'giải trí':
+        return const Color(0xFFFFB74D);
+      case 'sức khỏe':
+        return const Color(0xFFEF5350);
+      case 'thu nhập':
+      case 'lương':
+      case 'thưởng':
+        return const Color(0xFF4CAF50);
+      default:
+        return const Color(0xFF78909C);
     }
   }
 
@@ -77,7 +198,7 @@ class _AddTransactionScreenState extends State<AddTransactionScreen> {
         leading: IconButton(
           icon: const Icon(Icons.arrow_back, color: Colors.black87),
           onPressed: () {
-            // Xử lý khi nhấn nút quay lại
+            Navigator.pop(context);
           },
         ),
         title: const Text(
@@ -92,8 +213,7 @@ class _AddTransactionScreenState extends State<AddTransactionScreen> {
       ),
       body: SafeArea(
         child: Padding(
-          padding:
-          const EdgeInsets.symmetric(horizontal: 20.0, vertical: 12.0),
+          padding: const EdgeInsets.symmetric(horizontal: 20.0, vertical: 12.0),
           child: Column(
             children: [
               Expanded(
@@ -112,10 +232,16 @@ class _AddTransactionScreenState extends State<AddTransactionScreen> {
                           children: [
                             Expanded(
                               child: GestureDetector(
-                                onTap: () => setState(() => selectedType = 0),
+                                onTap: () {
+                                  setState(() {
+                                    selectedType = 0;
+                                    if (!expenseCategories.contains(selectedCategory)) {
+                                      selectedCategory = expenseCategories.first;
+                                    }
+                                  });
+                                },
                                 child: Container(
-                                  padding:
-                                  const EdgeInsets.symmetric(vertical: 12),
+                                  padding: const EdgeInsets.symmetric(vertical: 12),
                                   decoration: BoxDecoration(
                                     color: selectedType == 0
                                         ? const Color(0xFFFF5252)
@@ -137,10 +263,16 @@ class _AddTransactionScreenState extends State<AddTransactionScreen> {
                             ),
                             Expanded(
                               child: GestureDetector(
-                                onTap: () => setState(() => selectedType = 1),
+                                onTap: () {
+                                  setState(() {
+                                    selectedType = 1;
+                                    if (!incomeCategories.contains(selectedCategory)) {
+                                      selectedCategory = incomeCategories.first;
+                                    }
+                                  });
+                                },
                                 child: Container(
-                                  padding:
-                                  const EdgeInsets.symmetric(vertical: 12),
+                                  padding: const EdgeInsets.symmetric(vertical: 12),
                                   decoration: BoxDecoration(
                                     color: selectedType == 1
                                         ? const Color(0xFF4CAF50)
@@ -184,25 +316,26 @@ class _AddTransactionScreenState extends State<AddTransactionScreen> {
                         ),
                         child: DropdownButtonHideUnderline(
                           child: DropdownButton<String>(
-                            value: selectedCategory,
+                            value: currentCategories.contains(selectedCategory)
+                                ? selectedCategory
+                                : currentCategories.first,
                             isExpanded: true,
-                            icon: const Icon(
-                                Icons.keyboard_arrow_down_rounded),
-                            items: categories.map((String category) {
+                            icon: const Icon(Icons.keyboard_arrow_down_rounded),
+                            items: currentCategories.map((String category) {
                               return DropdownMenuItem<String>(
                                 value: category,
                                 child: Row(
                                   children: [
                                     Container(
                                       padding: const EdgeInsets.all(6),
-                                      decoration: const BoxDecoration(
-                                        color: Color(0xFFFFEBEE),
+                                      decoration: BoxDecoration(
+                                        color: _getCategoryColor(category).withOpacity(0.15),
                                         shape: BoxShape.circle,
                                       ),
-                                      child: const Icon(
-                                        Icons.restaurant,
+                                      child: Icon(
+                                        _getCategoryIcon(category),
                                         size: 18,
-                                        color: Color(0xFFFF5252),
+                                        color: _getCategoryColor(category),
                                       ),
                                     ),
                                     const SizedBox(width: 12),
@@ -259,12 +392,12 @@ class _AddTransactionScreenState extends State<AddTransactionScreen> {
                           border: OutlineInputBorder(
                             borderRadius: BorderRadius.circular(12),
                             borderSide:
-                            const BorderSide(color: Color(0xFFD0D5DD)),
+                                const BorderSide(color: Color(0xFFD0D5DD)),
                           ),
                           enabledBorder: OutlineInputBorder(
                             borderRadius: BorderRadius.circular(12),
                             borderSide:
-                            const BorderSide(color: Color(0xFFD0D5DD)),
+                                const BorderSide(color: Color(0xFFD0D5DD)),
                           ),
                           contentPadding: const EdgeInsets.symmetric(
                               horizontal: 16, vertical: 14),
@@ -292,12 +425,12 @@ class _AddTransactionScreenState extends State<AddTransactionScreen> {
                           border: OutlineInputBorder(
                             borderRadius: BorderRadius.circular(12),
                             borderSide:
-                            const BorderSide(color: Color(0xFFD0D5DD)),
+                                const BorderSide(color: Color(0xFFD0D5DD)),
                           ),
                           enabledBorder: OutlineInputBorder(
                             borderRadius: BorderRadius.circular(12),
                             borderSide:
-                            const BorderSide(color: Color(0xFFD0D5DD)),
+                                const BorderSide(color: Color(0xFFD0D5DD)),
                           ),
                           contentPadding: const EdgeInsets.symmetric(
                               horizontal: 16, vertical: 14),
@@ -324,12 +457,12 @@ class _AddTransactionScreenState extends State<AddTransactionScreen> {
                           border: OutlineInputBorder(
                             borderRadius: BorderRadius.circular(12),
                             borderSide:
-                            const BorderSide(color: Color(0xFFD0D5DD)),
+                                const BorderSide(color: Color(0xFFD0D5DD)),
                           ),
                           enabledBorder: OutlineInputBorder(
                             borderRadius: BorderRadius.circular(12),
                             borderSide:
-                            const BorderSide(color: Color(0xFFD0D5DD)),
+                                const BorderSide(color: Color(0xFFD0D5DD)),
                           ),
                           contentPadding: const EdgeInsets.all(16),
                         ),
@@ -344,13 +477,7 @@ class _AddTransactionScreenState extends State<AddTransactionScreen> {
                 width: double.infinity,
                 height: 50,
                 child: ElevatedButton(
-                  onPressed: () {
-                    ScaffoldMessenger.of(context).showSnackBar(
-                      const SnackBar(
-                        content: Text('Đã thêm giao dịch thành công!'),
-                      ),
-                    );
-                  },
+                  onPressed: _saveTransaction,
                   style: ElevatedButton.styleFrom(
                     backgroundColor: const Color(0xFF1565C0),
                     shape: RoundedRectangleBorder(

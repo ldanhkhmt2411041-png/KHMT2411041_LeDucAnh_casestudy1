@@ -18,63 +18,42 @@
 | `buoi3` | Buổi 3 | Xây dựng 2 màn hình Thêm giao dịch (`add_screen.dart`) và Sửa giao dịch (`edit_screen.dart`). | Hoàn thành |
 | `buoi4` | Buổi 4 | Xây dựng giao diện màn hình Dashboard quản lý thu chi (`home_screen.dart`). | Hoàn thành |
 | `buoi5` | Buổi 5 | Thiết kế và xây dựng cơ sở dữ liệu SQLite cho ứng dụng Expense Manager. | Hoàn thành |
+| `buoi6` | Buổi 6 | Hoàn thiện các màn hình thêm, sửa và load thông tin giao dịch lên màn hình Dashboard. | Hoàn thành |
 
 ---
 
-## Chi tiết Buổi 5: Thiết kế và xây dựng Database SQLite
+## Chi tiết Buổi 6: Hoàn thiện Thêm, Sửa và Nạp dữ liệu Dashboard
 
-### 1. Thư viện sử dụng
-- `sqflite`: ^2.3.3+1 (Hỗ trợ tương tác cơ sở dữ liệu SQLite trên thiết bị)
-- `path`: ^1.9.0 (Quản lý đường dẫn tập tin cơ sở dữ liệu)
-- `intl`: ^0.19.0 (Hỗ trợ định dạng số tiền VNĐ và ngày tháng)
+### 1. Luồng hoạt động hoàn thiện (Full Flow)
+1. **Welcome Screen (`main.dart`):** Bấm nút *"Bắt đầu"* để điều hướng vào Dashboard chính.
+2. **Dashboard (`home_screen.dart`):**
+   - Tự động nạp dữ liệu động thời gian thực từ SQLite `DatabaseHelper`.
+   - Tính toán và hiển thị chính xác **Số dư hiện tại**, **Tổng thu nhập**, **Tổng chi tiêu**.
+   - Hỗ trợ ẩn/hiện số dư tài khoản khi nhấn vào icon mắt.
+   - Hiển thị danh sách các giao dịch gần đây kèm icon, màu sắc và định dạng số tiền (+/- VNĐ).
+   - Hỗ trợ vuốt xuống để làm mới dữ liệu (**Pull to Refresh**).
+3. **Thêm giao dịch (`add_screen.dart`):**
+   - Nhấn nút `+` (FloatingActionButton) ở Dashboard để mở màn hình Thêm.
+   - Nhập thông tin, chọn ngày bằng `DatePicker`, chọn danh mục tương ứng theo loại Chi tiêu/Thu nhập.
+   - Bấm *"Lưu"* để ghi vào SQLite qua `insertTransaction` và tự động quay về Dashboard cập nhật số liệu.
+4. **Sửa / Xóa giao dịch (`edit_screen.dart`):**
+   - Nhấn vào bất kỳ giao dịch nào trong danh sách Dashboard để mở màn hình Sửa với dữ liệu được điền sẵn.
+   - Cho phép chỉnh sửa thông tin và bấm *"Lưu"* để cập nhật qua `updateTransaction`.
+   - Hỗ trợ icon *"Thùng rác"* trên AppBar để xóa giao dịch qua `deleteTransaction` với hộp thoại xác nhận an toàn.
+   - Tự động quay về Dashboard và làm mới số dư cùng danh sách giao dịch.
 
-### 2. Thiết kế bảng cơ sở dữ liệu (SQLite Schema)
+---
 
-#### Bảng `categories` (Danh mục giao dịch)
-| Cột | Kiểu dữ liệu | Ràng buộc | Mô tả |
-|---|---|---|---|
-| `id` | INTEGER | PRIMARY KEY AUTOINCREMENT | Mã danh mục |
-| `name` | TEXT | NOT NULL UNIQUE | Tên danh mục (Ăn uống, Di chuyển, Lương...) |
-| `type` | INTEGER | NOT NULL | 0: Chi tiêu, 1: Thu nhập |
-| `icon_name` | TEXT | NOT NULL | Tên icon tương ứng |
-| `color_value` | INTEGER | NOT NULL | Mã màu hex tương ứng |
-
-#### Bảng `transactions` (Lịch sử giao dịch thu/chi)
-| Cột | Kiểu dữ liệu | Ràng buộc | Mô tả |
-|---|---|---|---|
-| `id` | INTEGER | PRIMARY KEY AUTOINCREMENT | Mã giao dịch |
-| `title` | TEXT | NOT NULL | Tiêu đề giao dịch |
-| `amount` | REAL | NOT NULL | Số tiền giao dịch |
-| `date` | TEXT | NOT NULL | Ngày thực hiện (DD/MM/YYYY) |
-| `category` | TEXT | NOT NULL | Tên danh mục |
-| `type` | INTEGER | NOT NULL | 0: Chi tiêu, 1: Thu nhập |
-| `note` | TEXT | NULL | Ghi chú chi tiết |
-| `created_at` | TEXT | NOT NULL | Thời điểm tạo bản ghi (ISO 8601) |
-
-### 3. Cấu trúc mã nguồn trong `lib/`
+## Cấu trúc mã nguồn trong `lib/`
 ```text
 lib/
 ├── database/
-│   └── database_helper.dart      # Quản trị SQLite Singleton, tạo bảng, CRUD, hàm thống kê
+│   └── database_helper.dart      # Quản trị SQLite Singleton, tạo bảng, CRUD, seeding, thống kê
 ├── models/
 │   ├── category_model.dart       # Model danh mục, toMap(), fromMap()
 │   └── transaction_model.dart    # Model giao dịch, format tiền tệ, mapping icon/màu sắc
-├── add_screen.dart               # Giao diện Thêm giao dịch
-├── edit_screen.dart              # Giao diện Sửa giao dịch
-├── home_screen.dart              # Giao diện Dashboard Quản lý thu chi
-└── main.dart                     # Giao diện Chào mừng (WelcomeScreen) & Entrypoint
+├── add_screen.dart               # Giao diện Thêm giao dịch (kết nối insert SQLite)
+├── edit_screen.dart              # Giao diện Sửa & Xóa giao dịch (kết nối update/delete SQLite)
+├── home_screen.dart              # Giao diện Dashboard (load động số dư, tổng thu, tổng chi, danh sách)
+└── main.dart                     # Giao diện Chào mừng (WelcomeScreen) & Điều hướng sang Dashboard
 ```
-
-### 4. Các chức năng CRUD và Thống kê đã triển khai trong `DatabaseHelper`
-- `insertTransaction(TransactionModel item)`: Thêm mới giao dịch.
-- `getTransactionById(int id)`: Xem chi tiết giao dịch theo ID.
-- `getAllTransactions()`: Lấy toàn bộ danh sách giao dịch.
-- `getRecentTransactions({int limit})`: Lấy danh sách giao dịch gần nhất cho Dashboard.
-- `getTransactionsByType(int type)`: Lọc giao dịch theo Thu nhập hoặc Chi tiêu.
-- `getTransactionsByCategory(String category)`: Lọc giao dịch theo danh mục.
-- `updateTransaction(TransactionModel item)`: Cập nhật giao dịch.
-- `deleteTransaction(int id)`: Xóa giao dịch.
-- `getTotalIncome()`: Tính tổng thu nhập.
-- `getTotalExpense()`: Tính tổng chi tiêu.
-- `getCurrentBalance()`: Tính số dư hiện tại (Tổng thu - Tổng chi).
-- Tự động nạp dữ liệu mẫu ban đầu (Seeding initial transactions & categories) khớp 100% với giao diện Dashboard thiết kế ở Buổi 4.
